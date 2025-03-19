@@ -9,7 +9,7 @@ const io = socketIo(server);
 
 // CORS-Konfiguration
 const corsOptions = {
-  origin: "http://localhost:5500", // Ersetze dies mit der Adresse deines Frontends, falls du es von einer anderen Domain aus zugreifst
+  origin: "https://snake-frontend-x8cf.onrender.com:5500", // Ersetze dies mit der Adresse deines Frontends, falls du es von einer anderen Domain aus zugreifst
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type"]
 };
