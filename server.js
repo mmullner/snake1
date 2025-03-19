@@ -53,42 +53,39 @@ function getRandomFreePosition() {
   return { x: position[0], y: position[1] };
 }
 
-// 🔢 Countdown für Respawn oder Spielstart
-function startCountdown(isRespawn = false) {
+// 🔢 Countdown für einen einzelnen Spieler starten
+function startCountdownForPlayer(socket, isRespawn = false) {
   let countdown = 3;
-  countdownInProgress = true; // Countdown läuft
 
   const interval = setInterval(() => {
-    io.emit("countdown", countdown); // Alle Spieler erhalten den Countdown
+    socket.emit("countdown", countdown); // Countdown nur für diesen Spieler senden
     countdown--;
 
     if (countdown < 0) {
       clearInterval(interval);
       if (isRespawn) {
         // Spieler respawnen
-        Object.values(players).forEach(player => respawnPlayerAfterCountdown(player));
+        respawnPlayerAfterCountdown(socket);
       } else {
-        // Spiel starten
-        startGame();
+        // Spiel für den Spieler starten
+        startGameForPlayer(socket);
       }
     }
   }, 1000);
 }
 
-// 🔄 Spieler respawnen nach Tod
-function respawnPlayer(player) {
-  console.log(`💀 Spieler ${player.number} ist gestorben! Respawn...`);
-
-  // Spieler sofort entfernen
-  delete players[player.id];
-  io.emit("playerLeft", { id: player.id });
-
-  // Countdown starten
-  startCountdown(true);
+// 🎮 Spiel nur für diesen Spieler starten
+function startGameForPlayer(socket) {
+  gameStarted = true;
+  socket.emit("gameStart"); // Das Spiel für diesen Spieler starten
+  moveSnakes();
 }
 
 // 🔄 Spieler nach dem Countdown respawnen
-function respawnPlayerAfterCountdown(player) {
+function respawnPlayerAfterCountdown(socket) {
+  const player = players[socket.id];
+  if (!player) return;
+
   const newStartPos = getRandomFreePosition();
 
   // Neuer Spieler-Objekt erstellen
@@ -103,17 +100,11 @@ function respawnPlayerAfterCountdown(player) {
   };
 
   // Den Spieler wieder hinzufügen
-  players[player.id] = newSnake;
+  players[socket.id] = newSnake;
 
   // Das Spiel mit dem neuen Spielerstatus aktualisieren
-  io.emit("newPlayer", { id: player.id, snake: newSnake });
+  io.emit("newPlayer", { id: socket.id, snake: newSnake });
   io.emit("gameUpdate", { players, food });
-}
-
-// 🎮 Spiel starten
-function startGame() {
-  gameStarted = true;
-  moveSnakes();
 }
 
 // 🏃 Bewegungsschleife für alle Spieler
@@ -178,8 +169,9 @@ io.on("connection", (socket) => {
   socket.emit("init", { snake, food });
   io.emit("newPlayer", { id: socket.id, snake });
 
+  // Countdown nur für den neuen Spieler starten
   console.log("Starte Countdown für den neuen Spieler...");
-  startCountdown(socket);
+  startCountdownForPlayer(socket);
 
   // ⌨️ Steuerung (PC & Mobile)
   socket.on("keyPress", (key) => {
