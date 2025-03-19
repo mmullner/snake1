@@ -5,19 +5,18 @@ const cors = require("cors");  // CORS-Modul einbinden
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+    cors: {
+        origin: "https://snake-frontend-x8cf.onrender.com",  // Frontend-URL
+        methods: ["GET", "POST"],
+        allowedHeaders: ["Content-Type"],
+        credentials: true,
+    }
+});
 
-// CORS-Konfiguration
-const corsOptions = {
-	origin: 'https://snake-frontend-x8cf.onrender.com',  // Frontend-URL, die auf das Backend zugreifen darf
-	methods: ['GET', 'POST'],
-	allowedHeaders: ['Content-Type', 'Authorization'],  // Falls Header wie Authentifizierung benötigt werden
-	credentials: true // Wenn Cookies und Authentifizierung verwendet werden
-  };
+const port = process.env.PORT || 3000;
 
-app.use(cors(corsOptions)); // CORS Middleware
-
-const port = 3000;
+app.use(cors());
 
 // Middleware für statische Dateien (Frontend)
 app.use(express.static("public"));
