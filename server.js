@@ -5,106 +5,138 @@ const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
+
+// CORS-Konfiguration
 const io = socketIo(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: {
+    origin: "https://snake-frontend-x8cf.onrender.com",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"],
+    credentials: true,
+  }
 });
 
 const port = process.env.PORT || 3000;
+
 app.use(cors());
+app.use(express.static("public"));
 
 let players = {};
 let food = { x: 10, y: 10 };
-let playerCount = 0;
+const gridSize = 40; // Spielfeld verdoppelt
 
-const DIRECTIONS = [
-  { x: 1, y: 0 },  // Rechts
-  { x: 0, y: 1 },  // Unten
-  { x: -1, y: 0 }, // Links
-  { x: 0, y: -1 }, // Oben
-];
-
-function getRandomPosition() {
-  return [Math.floor(Math.random() * 20), Math.floor(Math.random() * 20)];
+// Erste freie Spielernummer finden
+function getNextPlayerNumber() {
+  let num = 1;
+  while (Object.values(players).some(p => p.number === num)) {
+    num++;
+  }
+  return num;
 }
 
-function spawnFood() {
-  food = { x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20) };
+// Zufällige Position finden, die nicht besetzt ist
+function getRandomFreePosition() {
+  let position;
+  let occupied;
+  do {
+    position = [Math.floor(Math.random() * gridSize), Math.floor(Math.random() * gridSize)];
+    occupied = Object.values(players).some(player =>
+      player.body.some(segment => segment[0] === position[0] && segment[1] === position[1])
+    );
+  } while (occupied);
+  return position;
 }
 
+// Zufällige Farbe generieren
+function getRandomColor() {
+  return `#${Math.floor(Math.random()*16777215).toString(16)}`;
+}
+
+// Bewegungsschleife
 function moveSnakes() {
   for (const playerId in players) {
-    let player = players[playerId];
+    const player = players[playerId];
 
-    // Bewege die Schlange
-    let newHead = [player.body[0][0] + player.direction.x, player.body[0][1] + player.direction.y];
+    // Kopf verschieben
+    const newHead = [player.body[0][0] + player.direction.x, player.body[0][1] + player.direction.y];
 
-    // Wände überspringen (endloses Spielfeld)
-    newHead[0] = (newHead[0] + 20) % 20;
-    newHead[1] = (newHead[1] + 20) % 20;
+    // Bildschirmränder teleportieren
+    if (newHead[0] < 0) newHead[0] = gridSize - 1;
+    if (newHead[0] >= gridSize) newHead[0] = 0;
+    if (newHead[1] < 0) newHead[1] = gridSize - 1;
+    if (newHead[1] >= gridSize) newHead[1] = 0;
 
-    // Kollision mit sich selbst oder anderen Spielern prüfen
-    let collided = Object.values(players).some(otherPlayer =>
-      otherPlayer.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1])
-    );
+    player.body.unshift(newHead);
 
-    if (collided) {
-      console.log(`${player.name} ist gestorben!`);
-      player.body = [getRandomPosition()];
+    // Kollision mit sich selbst
+    if (player.body.slice(1).some(segment => segment[0] === newHead[0] && segment[1] === newHead[1])) {
+      console.log(`Spieler ${player.number} ist gestorben! Respawn...`);
+      player.body = [getRandomFreePosition()];
       player.direction = { x: 1, y: 0 };
       player.score = 0;
-      continue;
+    } else {
+      player.body.pop(); // Schwanz entfernen
     }
 
-    // Neue Position setzen
-    player.body.unshift(newHead);
+    // Food essen
     if (newHead[0] === food.x && newHead[1] === food.y) {
+      player.body.push([...player.body[player.body.length - 1]]);
       player.score += 10;
-      spawnFood();
-    } else {
-      player.body.pop();
+      food = getRandomFreePosition();
     }
   }
 
   io.emit("gameUpdate", { players, food });
-  setTimeout(moveSnakes, 200);
+  setTimeout(moveSnakes, 100); // Geschwindigkeit halbiert
 }
 
 io.on("connection", (socket) => {
-  console.log("Spieler verbunden:", socket.id);
-  playerCount++;
+  console.log(`Spieler verbunden: ${socket.id}`);
 
-  players[socket.id] = {
+  const playerNumber = getNextPlayerNumber();
+  const startPos = getRandomFreePosition();
+
+  let snake = {
     id: socket.id,
-    name: `Spieler ${playerCount}`,
-    body: [getRandomPosition()],
+    number: playerNumber,
+    name: `Spieler ${playerNumber}`,
     direction: { x: 1, y: 0 },
-    directionIndex: 0, // Startet nach rechts
+    body: [startPos, [startPos[0] - 1, startPos[1]], [startPos[0] - 2, startPos[1]]],
     score: 0,
-    color: "#" + Math.floor(Math.random() * 16777215).toString(16),
+    color: getRandomColor(),
   };
 
-  socket.emit("init", { players, food });
-  io.emit("gameUpdate", { players, food });
+  players[socket.id] = snake;
 
-  if (Object.keys(players).length === 1) moveSnakes();
+  socket.emit("init", { snake, food });
+  io.emit("newPlayer", { id: socket.id, snake });
+
+  if (Object.keys(players).length === 1) {
+    moveSnakes();
+  }
 
   socket.on("keyPress", (key) => {
     const player = players[socket.id];
     if (!player) return;
 
     if (key === "ArrowLeft") {
-      player.directionIndex = (player.directionIndex + 3) % 4;
-    } else if (key === "ArrowRight") {
-      player.directionIndex = (player.directionIndex + 1) % 4;
+      // Links drehen (gegen Uhrzeigersinn)
+      const temp = player.direction.x;
+      player.direction.x = player.direction.y;
+      player.direction.y = -temp;
     }
-
-    player.direction = DIRECTIONS[player.directionIndex];
+    if (key === "ArrowRight") {
+      // Rechts drehen (im Uhrzeigersinn)
+      const temp = player.direction.x;
+      player.direction.x = -player.direction.y;
+      player.direction.y = temp;
+    }
   });
 
   socket.on("disconnect", () => {
-    console.log("Spieler getrennt:", socket.id);
+    console.log(`Spieler ${socket.id} hat das Spiel verlassen`);
     delete players[socket.id];
-    io.emit("gameUpdate", { players, food });
+    io.emit("playerLeft", { id: socket.id });
   });
 });
 
