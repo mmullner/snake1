@@ -32,6 +32,23 @@ function spawnFood() {
   food.y = Math.floor(Math.random() * 20);
 }
 
+// Funktion, um eine zufällige Position zu generieren, die nicht von einem anderen Spieler besetzt ist
+function getRandomFreePosition() {
+  let position;
+  let isPositionOccupied = true;
+
+  while (isPositionOccupied) {
+    position = [Math.floor(Math.random() * 20), Math.floor(Math.random() * 20)];
+
+    // Überprüfen, ob diese Position bereits von einer Schlange besetzt ist
+    isPositionOccupied = Object.values(players).some(player =>
+      player.body.some(segment => segment[0] === position[0] && segment[1] === position[1])
+    );
+  }
+
+  return position;
+}
+
 // Spieler initialisieren, wenn sie sich verbinden
 io.on("connection", (socket) => {
   console.log("Ein Spieler hat sich verbunden:", socket.id);
@@ -52,6 +69,11 @@ io.on("connection", (socket) => {
 
   // Broadcast an andere Spieler, dass ein neuer Spieler eingetreten ist
   socket.broadcast.emit("newPlayer", { id: socket.id, snake });
+
+  // Wenn der erste Spieler sich verbindet, starte das Spiel
+  if (Object.keys(players).length === 1) {
+    moveSnakes(); // Start der Spielschleife
+  }
 
   // Spielschleife
   const moveSnakes = () => {
@@ -77,9 +99,11 @@ io.on("connection", (socket) => {
 
       // Überprüfe, ob die Schlange mit sich selbst kollidiert
       if (player.body.slice(1).some(segment => segment[0] === player.body[0][0] && segment[1] === player.body[0][1])) {
-        io.emit("gameOver", { winner: playerId === Object.keys(players)[0] ? "Blue" : "Red", scores: players });
-        players = {}; // Alle Spieler zurücksetzen
-        return;
+        // Wenn die Schlange mit sich selbst kollidiert oder stirbt, spawn den Spieler neu
+        console.log(`${playerId} hat verloren! Neuer Spawn...`);
+        player.body = [getRandomFreePosition()]; // Setze die Schlange an einer neuen Position zurück
+        player.direction = { x: 1, y: 0 }; // Anfangsrichtung setzen
+        player.score = 0; // Score zurücksetzen
       }
 
       // Überprüfe, ob die Schlange das Food isst
@@ -96,9 +120,6 @@ io.on("connection", (socket) => {
     // Wiederhole die Bewegung alle 200ms
     setTimeout(moveSnakes, 200);
   };
-
-  // Spiel starten
-  moveSnakes();
 
   // Tastenanschläge für Steuerung empfangen
   socket.on("keyPress", (key) => {
