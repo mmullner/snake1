@@ -11,8 +11,7 @@ const io = socketIo(server);
 const corsOptions = {
   origin: "https://snake-frontend-x8cf.onrender.com", // Ersetze dies mit der Adresse deines Frontends, falls du es von einer anderen Domain aus zugreifst
   methods: ["GET", "POST"],
-  allowedHeaders: ["Content-Type"]
-};
+  allowedHeaders: ['Content-Type', 'Authorization'],  // Falls Header wie Authentifizierung benötigt werden};
 
 app.use(cors(corsOptions)); // CORS Middleware
 
