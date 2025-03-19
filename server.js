@@ -54,6 +54,7 @@ io.on("connection", (socket) => {
     color: getRandomColor(),  // Zufällige Farbe für die Schlange
   };
 
+  // Neuen Spieler zum Spieler-Objekt hinzufügen
   players[socket.id] = snake;
 
   // Sende den initialen Spielstatus an den neuen Spieler
@@ -62,7 +63,7 @@ io.on("connection", (socket) => {
   // Broadcast an andere Spieler, dass ein neuer Spieler eingetreten ist
   socket.broadcast.emit("newPlayer", { id: socket.id, snake });
 
-  // Spielschleife
+  // Spielschleife für alle Spieler
   const moveSnakes = () => {
     for (const playerId in players) {
       const player = players[playerId];
