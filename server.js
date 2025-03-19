@@ -7,7 +7,6 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
-const port = 3000;
 // CORS-Konfiguration
 const corsOptions = {
   origin: "https://snake-frontend-x8cf.onrender.com", // Ersetze dies mit der Adresse deines Frontends, falls du es von einer anderen Domain aus zugreifst
