@@ -173,4 +173,41 @@ io.on("connection", (socket) => {
   players[socket.id] = snake;
 
   socket.emit("init", { snake, food });
-  io.emit("newPlayer", { id:
+  io.emit("newPlayer", { id: socket.id, snake });
+
+  if (!gameStarted) {
+    gameStarted = true;
+    moveSnakes();
+  }
+
+  // ⌨️ Steuerung (PC & Mobile)
+  socket.on("keyPress", (key) => {
+    const player = players[socket.id];
+    if (!player) return;
+
+    if (key === "ArrowLeft") {
+      const temp = player.direction.x;
+      player.direction.x = player.direction.y;
+      player.direction.y = -temp;
+    }
+    if (key === "ArrowRight") {
+      const temp = player.direction.x;
+      player.direction.x = -player.direction.y;
+      player.direction.y = temp;
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log(`❌ Spieler ${socket.id} hat das Spiel verlassen`);
+    delete players[socket.id];
+    io.emit("playerLeft", { id: socket.id });
+
+    if (Object.keys(players).length === 0) {
+      gameStarted = false;
+    }
+  });
+});
+
+server.listen(port, () => {
+  console.log(`🚀 Server läuft auf http://localhost:${port}`);
+});
