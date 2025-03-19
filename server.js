@@ -5,7 +5,6 @@ const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
-
 const io = socketIo(server, {
   cors: {
     origin: "https://snake-frontend-x8cf.onrender.com",
@@ -36,13 +35,11 @@ function getNextPlayerNumber() {
 // Zufällige Position finden
 function getRandomFreePosition() {
   let position;
-  let occupied;
   do {
     position = [Math.floor(Math.random() * gridSize), Math.floor(Math.random() * gridSize)];
-    occupied = Object.values(players).some(player =>
-      player.body.some(segment => segment[0] === position[0] && segment[1] === position[1])
-    );
-  } while (occupied);
+  } while (Object.values(players).some(player =>
+    player.body.some(segment => segment[0] === position[0] && segment[1] === position[1])
+  ));
   return position;
 }
 
@@ -56,9 +53,10 @@ function moveSnakes() {
   for (const playerId in players) {
     const player = players[playerId];
 
+    // Kopf berechnen
     const newHead = [player.body[0][0] + player.direction.x, player.body[0][1] + player.direction.y];
 
-    // Bildschirmränder teleportieren
+    // Randüberquerung erlauben (Teleportation)
     newHead[0] = (newHead[0] + gridSize) % gridSize;
     newHead[1] = (newHead[1] + gridSize) % gridSize;
 
@@ -74,7 +72,7 @@ function moveSnakes() {
       player.body.pop();
     }
 
-    // Food essen
+    // Essen
     if (newHead[0] === food.x && newHead[1] === food.y) {
       player.body.push([...player.body[player.body.length - 1]]);
       player.score += 10;
@@ -89,7 +87,7 @@ function moveSnakes() {
 io.on("connection", (socket) => {
   console.log(`Spieler verbunden: ${socket.id}`);
 
-  // Entferne den Spieler, falls er bereits existiert (z.B. nach Aktualisierung)
+  // Entferne vorherigen Spieler falls existiert (bei Seiten-Refresh)
   if (players[socket.id]) {
     delete players[socket.id];
     io.emit("playerLeft", { id: socket.id });
