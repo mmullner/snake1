@@ -53,6 +53,37 @@ function getRandomFreePosition() {
 }
 
 
+// 🔢 Countdown für Respawn oder Spielstart
+function startCountdown(player, isRespawn = false) {
+  let countdown = 3;
+  const interval = setInterval(() => {
+    io.to(player.id).emit("countdown", countdown);
+    countdown--;
+
+    if (countdown < 0) {
+      clearInterval(interval);
+      if (isRespawn) {
+        respawnPlayerAfterCountdown(player);
+      } else {
+        startGame();
+      }
+    }
+  }, 1000);
+}
+
+
+// 🔄 Spieler respawnen nach Tod
+function respawnPlayer(player) {
+  console.log(`💀 Spieler ${player.number} ist gestorben! Respawn...`);
+
+  // Spieler sofort entfernen
+  delete players[player.id];
+  io.emit("playerLeft", { id: player.id });
+
+  // Countdown starten
+  startCountdown(player, true);
+}
+
 // 🔄 Spieler nach dem Countdown respawnen
 function respawnPlayerAfterCountdown(player) {
   const newStartPos = getRandomFreePosition();
@@ -75,37 +106,6 @@ function respawnPlayerAfterCountdown(player) {
   io.emit("newPlayer", { id: player.id, snake: newSnake });
   io.emit("gameUpdate", { players, food });
 }
-
-// 🔢 Countdown für Respawn oder Spielstart
-function startCountdown(player, isRespawn = false) {
-  let countdown = 3;
-  const interval = setInterval(() => {
-    io.to(player.id).emit("countdown", countdown);
-    countdown--;
-
-    if (countdown < 0) {
-      clearInterval(interval);
-      if (isRespawn) {
-        respawnPlayerAfterCountdown(player);
-      } else {
-        startGame();
-      }
-    }
-  }, 1000);
-}
-
-// 🔄 Spieler respawnen nach Tod
-function respawnPlayer(player) {
-  console.log(`💀 Spieler ${player.number} ist gestorben! Respawn...`);
-
-  // Spieler sofort entfernen
-  delete players[player.id];
-  io.emit("playerLeft", { id: player.id });
-
-  // Countdown starten
-  startCountdown(player, true);
-}
-
 
 // 🎮 Spiel starten
 function startGame() {
