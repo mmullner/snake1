@@ -52,6 +52,30 @@ function getRandomFreePosition() {
   return { x: position[0], y: position[1] };
 }
 
+
+// 🔄 Spieler nach dem Countdown respawnen
+function respawnPlayerAfterCountdown(player) {
+  const newStartPos = getRandomFreePosition();
+
+  // Neuer Spieler-Objekt erstellen
+  const newSnake = {
+    id: player.id,
+    number: player.number,
+    name: player.name,
+    direction: { x: 1, y: 0 },
+    body: [[newStartPos.x, newStartPos.y]],
+    score: 0,
+    color: player.color, // Spielerfarbe beibehalten
+  };
+
+  // Den Spieler wieder hinzufügen
+  players[player.id] = newSnake;
+
+  // Das Spiel mit dem neuen Spielerstatus aktualisieren
+  io.emit("newPlayer", { id: player.id, snake: newSnake });
+  io.emit("gameUpdate", { players, food });
+}
+
 // 🔢 Countdown für Respawn oder Spielstart
 function startCountdown(player, isRespawn = false) {
   let countdown = 3;
@@ -62,7 +86,7 @@ function startCountdown(player, isRespawn = false) {
     if (countdown < 0) {
       clearInterval(interval);
       if (isRespawn) {
-        respawnPlayer(player);
+        respawnPlayerAfterCountdown(player);
       } else {
         startGame();
       }
@@ -110,7 +134,7 @@ function moveSnakes() {
     // ❌ Prüfen auf Kollision mit sich selbst oder anderen Spielern
     if (player.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1]) ||
         occupiedPositions.has(`${newHead[0]},${newHead[1]}`)) {
-      startCountdown(player, true);
+      respawnPlayer(player);  // Direkter Aufruf der Respawn-Logik
       continue;
     }
 
@@ -149,41 +173,4 @@ io.on("connection", (socket) => {
   players[socket.id] = snake;
 
   socket.emit("init", { snake, food });
-  io.emit("newPlayer", { id: socket.id, snake });
-
-  if (!gameStarted) {
-    gameStarted = true;
-    moveSnakes();
-  }
-
-  // ⌨️ Steuerung (PC & Mobile)
-  socket.on("keyPress", (key) => {
-    const player = players[socket.id];
-    if (!player) return;
-
-    if (key === "ArrowLeft") {
-      const temp = player.direction.x;
-      player.direction.x = player.direction.y;
-      player.direction.y = -temp;
-    }
-    if (key === "ArrowRight") {
-      const temp = player.direction.x;
-      player.direction.x = -player.direction.y;
-      player.direction.y = temp;
-    }
-  });
-
-  socket.on("disconnect", () => {
-    console.log(`❌ Spieler ${socket.id} hat das Spiel verlassen`);
-    delete players[socket.id];
-    io.emit("playerLeft", { id: socket.id });
-
-    if (Object.keys(players).length === 0) {
-      gameStarted = false;
-    }
-  });
-});
-
-server.listen(port, () => {
-  console.log(`🚀 Server läuft auf http://localhost:${port}`);
-});
+  io.emit("newPlayer", { id:
