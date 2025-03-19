@@ -5,71 +5,63 @@ const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
-
 const io = socketIo(server, {
-  cors: {
-    origin: "https://snake-frontend-x8cf.onrender.com", // Deine Frontend-URL
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"],
-    credentials: true,
-  }
+  cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
 const port = process.env.PORT || 3000;
-
 app.use(cors());
-app.use(express.static("public"));
 
 let players = {};
 let food = { x: 10, y: 10 };
 let playerCount = 0;
 
+const DIRECTIONS = [
+  { x: 1, y: 0 },  // Rechts
+  { x: 0, y: 1 },  // Unten
+  { x: -1, y: 0 }, // Links
+  { x: 0, y: -1 }, // Oben
+];
+
+function getRandomPosition() {
+  return [Math.floor(Math.random() * 20), Math.floor(Math.random() * 20)];
+}
+
 function spawnFood() {
-  food.x = Math.floor(Math.random() * 20);
-  food.y = Math.floor(Math.random() * 20);
-}
-
-function getRandomFreePosition() {
-  let position;
-  let occupied = true;
-
-  while (occupied) {
-    position = [Math.floor(Math.random() * 20), Math.floor(Math.random() * 20)];
-    occupied = Object.values(players).some(player =>
-      player.body.some(segment => segment[0] === position[0] && segment[1] === position[1])
-    );
-  }
-
-  return position;
-}
-
-function getRandomColor() {
-  return "#" + Math.floor(Math.random() * 16777215).toString(16);
+  food = { x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 20) };
 }
 
 function moveSnakes() {
   for (const playerId in players) {
-    const player = players[playerId];
+    let player = players[playerId];
 
-    player.body.unshift([player.body[0][0] + player.direction.x, player.body[0][1] + player.direction.y]);
-    player.body.pop();
+    // Bewege die Schlange
+    let newHead = [player.body[0][0] + player.direction.x, player.body[0][1] + player.direction.y];
 
-    if (player.body[0][0] < 0) player.body[0][0] = 19;
-    if (player.body[0][0] >= 20) player.body[0][0] = 0;
-    if (player.body[0][1] < 0) player.body[0][1] = 19;
-    if (player.body[0][1] >= 20) player.body[0][1] = 0;
+    // Wände überspringen (endloses Spielfeld)
+    newHead[0] = (newHead[0] + 20) % 20;
+    newHead[1] = (newHead[1] + 20) % 20;
 
-    if (player.body.slice(1).some(segment => segment[0] === player.body[0][0] && segment[1] === player.body[0][1])) {
-      console.log(`${player.name} ist gestorben! Respawn...`);
-      player.body = [getRandomFreePosition()];
+    // Kollision mit sich selbst oder anderen Spielern prüfen
+    let collided = Object.values(players).some(otherPlayer =>
+      otherPlayer.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1])
+    );
+
+    if (collided) {
+      console.log(`${player.name} ist gestorben!`);
+      player.body = [getRandomPosition()];
       player.direction = { x: 1, y: 0 };
       player.score = 0;
+      continue;
     }
 
-    if (player.body[0][0] === food.x && player.body[0][1] === food.y) {
-      player.body.push([...player.body[player.body.length - 1]]);
+    // Neue Position setzen
+    player.body.unshift(newHead);
+    if (newHead[0] === food.x && newHead[1] === food.y) {
       player.score += 10;
       spawnFood();
+    } else {
+      player.body.pop();
     }
   }
 
@@ -81,18 +73,17 @@ io.on("connection", (socket) => {
   console.log("Spieler verbunden:", socket.id);
   playerCount++;
 
-  let snake = {
+  players[socket.id] = {
     id: socket.id,
     name: `Spieler ${playerCount}`,
+    body: [getRandomPosition()],
     direction: { x: 1, y: 0 },
-    body: [getRandomFreePosition()],
+    directionIndex: 0, // Startet nach rechts
     score: 0,
-    color: getRandomColor(),
+    color: "#" + Math.floor(Math.random() * 16777215).toString(16),
   };
 
-  players[socket.id] = snake;
-
-  socket.emit("init", { snake, food });
+  socket.emit("init", { players, food });
   io.emit("gameUpdate", { players, food });
 
   if (Object.keys(players).length === 1) moveSnakes();
@@ -101,10 +92,13 @@ io.on("connection", (socket) => {
     const player = players[socket.id];
     if (!player) return;
 
-    if (key === "ArrowUp" && player.direction.y !== 1) player.direction = { x: 0, y: -1 };
-    if (key === "ArrowDown" && player.direction.y !== -1) player.direction = { x: 0, y: 1 };
-    if (key === "ArrowLeft" && player.direction.x !== 1) player.direction = { x: -1, y: 0 };
-    if (key === "ArrowRight" && player.direction.x !== -1) player.direction = { x: 1, y: 0 };
+    if (key === "ArrowLeft") {
+      player.directionIndex = (player.directionIndex + 3) % 4;
+    } else if (key === "ArrowRight") {
+      player.directionIndex = (player.directionIndex + 1) % 4;
+    }
+
+    player.direction = DIRECTIONS[player.directionIndex];
   });
 
   socket.on("disconnect", () => {
