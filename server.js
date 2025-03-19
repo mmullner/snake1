@@ -59,8 +59,8 @@ function getRandomColor() {
   return color;
 }
 
-// Spielschleife (diese Funktion wird für alle Spieler einmalig gestartet)
-const moveSnakes = () => {
+// Funktion für das Bewegen der Schlangen
+function moveSnakes() {
   for (const playerId in players) {
     const player = players[playerId];
 
@@ -85,7 +85,12 @@ const moveSnakes = () => {
     if (player.body.slice(1).some(segment => segment[0] === player.body[0][0] && segment[1] === player.body[0][1])) {
       // Wenn die Schlange mit sich selbst kollidiert oder stirbt, spawn den Spieler neu
       console.log(`${playerId} hat verloren! Neuer Spawn...`);
-      player.body = [getRandomFreePosition()]; // Setze die Schlange an einer neuen Position zurück
+      // Setze die Schlange an eine neue Position mit einer Mindestlänge von 3
+      player.body = [
+        getRandomFreePosition(),
+        getRandomFreePosition(),
+        getRandomFreePosition(),
+      ]; // Startposition neu setzen
       player.direction = { x: 1, y: 0 }; // Anfangsrichtung setzen
       player.score = 0; // Score zurücksetzen
     }
@@ -103,7 +108,7 @@ const moveSnakes = () => {
 
   // Wiederhole die Bewegung alle 200ms
   setTimeout(moveSnakes, 200);
-};
+}
 
 // Spieler initialisieren, wenn sie sich verbinden
 io.on("connection", (socket) => {
