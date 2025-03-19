@@ -53,7 +53,7 @@ function getRandomFreePosition() {
 }
 
 // 🔢 Countdown für Respawn
-function startRespawnCountdown(player) {
+function startCountdown(player, isRespawn = false) {
 	let countdown = 3; // Start mit 3 Sekunden
 	const interval = setInterval(() => {
 	  io.to(player.id).emit("countdown", countdown); // Countdown an den Client senden
@@ -61,7 +61,11 @@ function startRespawnCountdown(player) {
 
 	  if (countdown < 0) {
 		clearInterval(interval);  // Stoppen des Intervalls
-		respawnPlayer(player);     // Nach Countdown Spieler respawnen
+		if (isRespawn) {
+		  respawnPlayer(player);     // Nach Countdown Spieler respawnen
+		} else {
+		  startGame();              // Spiel starten nach Countdown
+		}
 	  }
 	}, 1000);
   }
@@ -75,6 +79,12 @@ function startRespawnCountdown(player) {
 	player.score = 0;
 
 	io.to(player.id).emit("init", { snake: player, food });  // Respawn initiiert für den Spieler
+  }
+
+// 🎮 Spiel starten
+function startGame() {
+	gameStarted = true;
+	moveSnakes();  // Spiel bewegen
   }
 
 // 🏃 Bewegungsschleife für alle Spieler
@@ -123,15 +133,6 @@ function moveSnakes() {
   setTimeout(moveSnakes, speed);
 }
 
-// 🔄 Spieler respawnen nach Tod
-function respawnPlayer(player) {
-  console.log(`💀 Spieler ${player.number} ist gestorben! Respawn...`);
-  let newStart = getRandomFreePosition();
-  player.body = [[newStart.x, newStart.y]];
-  player.direction = { x: 1, y: 0 };
-  player.score = 0;
-}
-
 io.on("connection", (socket) => {
   console.log(`✅ Spieler verbunden: ${socket.id}`);
 
@@ -150,6 +151,8 @@ io.on("connection", (socket) => {
   };
 
   players[socket.id] = snake;
+
+  startCountdown(snake);  // Zeige den Countdown beim ersten Login
 
   socket.emit("init", { snake, food });
   io.emit("newPlayer", { id: socket.id, snake });
