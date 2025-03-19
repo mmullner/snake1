@@ -6,7 +6,6 @@ const cors = require("cors");
 const app = express();
 const server = http.createServer(app);
 
-// CORS-Konfiguration
 const io = socketIo(server, {
   cors: {
     origin: "https://snake-frontend-x8cf.onrender.com",
@@ -23,9 +22,9 @@ app.use(express.static("public"));
 
 let players = {};
 let food = { x: 10, y: 10 };
-const gridSize = 40; // Spielfeld verdoppelt
+const gridSize = 20;
 
-// Erste freie Spielernummer finden
+// Erstfreie Spielernummer finden
 function getNextPlayerNumber() {
   let num = 1;
   while (Object.values(players).some(p => p.number === num)) {
@@ -34,7 +33,7 @@ function getNextPlayerNumber() {
   return num;
 }
 
-// Zufällige Position finden, die nicht besetzt ist
+// Zufällige Position finden
 function getRandomFreePosition() {
   let position;
   let occupied;
@@ -57,14 +56,11 @@ function moveSnakes() {
   for (const playerId in players) {
     const player = players[playerId];
 
-    // Kopf verschieben
     const newHead = [player.body[0][0] + player.direction.x, player.body[0][1] + player.direction.y];
 
     // Bildschirmränder teleportieren
-    if (newHead[0] < 0) newHead[0] = gridSize - 1;
-    if (newHead[0] >= gridSize) newHead[0] = 0;
-    if (newHead[1] < 0) newHead[1] = gridSize - 1;
-    if (newHead[1] >= gridSize) newHead[1] = 0;
+    newHead[0] = (newHead[0] + gridSize) % gridSize;
+    newHead[1] = (newHead[1] + gridSize) % gridSize;
 
     player.body.unshift(newHead);
 
@@ -75,7 +71,7 @@ function moveSnakes() {
       player.direction = { x: 1, y: 0 };
       player.score = 0;
     } else {
-      player.body.pop(); // Schwanz entfernen
+      player.body.pop();
     }
 
     // Food essen
@@ -87,11 +83,17 @@ function moveSnakes() {
   }
 
   io.emit("gameUpdate", { players, food });
-  setTimeout(moveSnakes, 100); // Geschwindigkeit halbiert
+  setTimeout(moveSnakes, 100);
 }
 
 io.on("connection", (socket) => {
   console.log(`Spieler verbunden: ${socket.id}`);
+
+  // Entferne den Spieler, falls er bereits existiert (z.B. nach Aktualisierung)
+  if (players[socket.id]) {
+    delete players[socket.id];
+    io.emit("playerLeft", { id: socket.id });
+  }
 
   const playerNumber = getNextPlayerNumber();
   const startPos = getRandomFreePosition();
@@ -119,14 +121,12 @@ io.on("connection", (socket) => {
     const player = players[socket.id];
     if (!player) return;
 
-    if (key === "ArrowLeft") {
-      // Links drehen (gegen Uhrzeigersinn)
+    if (key === "ArrowLeft" || key === "KeyA") {
       const temp = player.direction.x;
       player.direction.x = player.direction.y;
       player.direction.y = -temp;
     }
-    if (key === "ArrowRight") {
-      // Rechts drehen (im Uhrzeigersinn)
+    if (key === "ArrowRight" || key === "KeyD") {
       const temp = player.direction.x;
       player.direction.x = -player.direction.y;
       player.direction.y = temp;
