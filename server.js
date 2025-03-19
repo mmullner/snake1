@@ -5,7 +5,7 @@ const cors = require("cors");  // CORS-Modul einbinden
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
+const io = require('socket.io', {
     cors: {
         origin: "https://snake-frontend-x8cf.onrender.com",  // Frontend-URL
         methods: ["GET", "POST"],
