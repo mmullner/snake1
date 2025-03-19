@@ -82,20 +82,6 @@ function respawnPlayer(player) {
   startCountdown(player, true);
 }
 
-// 🔄 Spieler nach Countdown wieder ins Spiel bringen
-function respawnPlayer(player) {
-  console.log(`↩️ Spieler ${player.number} spawnt neu...`);
-
-  let newStart = getRandomFreePosition();
-  player.body = [[newStart.x, newStart.y]];
-  player.direction = { x: 1, y: 0 };
-  player.score = 0;
-
-  players[player.id] = player; // Spieler wieder hinzufügen
-
-  io.to(player.id).emit("init", { snake: player, food });
-  io.emit("gameUpdate", { players, food });
-}
 
 // 🎮 Spiel starten
 function startGame() {
@@ -133,7 +119,7 @@ function moveSnakes() {
 
     // 🍏 Essen einsammeln
     if (newHead[0] === food.x && newHead[1] === food.y) {
-      player.score += 10;
+      player.score += 1;
       food = getRandomFreePosition();
     } else {
       player.body.pop();
