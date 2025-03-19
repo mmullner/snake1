@@ -49,6 +49,62 @@ function getRandomFreePosition() {
   return position;
 }
 
+// Funktion zum Erzeugen einer zufälligen Farbe
+function getRandomColor() {
+  const letters = '0123456789ABCDEF';
+  let color = '#';
+  for (let i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
+  }
+  return color;
+}
+
+// Spielschleife (diese Funktion wird für alle Spieler einmalig gestartet)
+const moveSnakes = () => {
+  for (const playerId in players) {
+    const player = players[playerId];
+
+    // Schlange des Spielers bewegen
+    player.body.unshift([player.body[0][0] + player.direction.x, player.body[0][1] + player.direction.y]);
+    player.body.pop(); // Entferne das hintere Segment
+
+    // Wandkollision überprüfen (gehe zur gegenüberliegenden Seite)
+    if (player.body[0][0] < 0) {
+      player.body[0][0] = 19; // Bei Wand auf der linken Seite, gehe auf die rechte Seite
+    } else if (player.body[0][0] >= 20) {
+      player.body[0][0] = 0; // Bei Wand auf der rechten Seite, gehe auf die linke Seite
+    }
+
+    if (player.body[0][1] < 0) {
+      player.body[0][1] = 19; // Bei Wand oben, gehe nach unten
+    } else if (player.body[0][1] >= 20) {
+      player.body[0][1] = 0; // Bei Wand unten, gehe nach oben
+    }
+
+    // Überprüfe, ob die Schlange mit sich selbst kollidiert
+    if (player.body.slice(1).some(segment => segment[0] === player.body[0][0] && segment[1] === player.body[0][1])) {
+      // Wenn die Schlange mit sich selbst kollidiert oder stirbt, spawn den Spieler neu
+      console.log(`${playerId} hat verloren! Neuer Spawn...`);
+      player.body = [getRandomFreePosition()]; // Setze die Schlange an einer neuen Position zurück
+      player.direction = { x: 1, y: 0 }; // Anfangsrichtung setzen
+      player.score = 0; // Score zurücksetzen
+    }
+
+    // Überprüfe, ob die Schlange das Food isst
+    if (player.body[0][0] === food.x && player.body[0][1] === food.y) {
+      player.body.push([...player.body[player.body.length - 1]]);
+      player.score += 10;
+      spawnFood(); // Neues Food spawnen
+    }
+  }
+
+  // Broadcast den Spielstatus an alle Spieler
+  io.emit("gameUpdate", { players, food });
+
+  // Wiederhole die Bewegung alle 200ms
+  setTimeout(moveSnakes, 200);
+};
+
 // Spieler initialisieren, wenn sie sich verbinden
 io.on("connection", (socket) => {
   console.log("Ein Spieler hat sich verbunden:", socket.id);
@@ -75,52 +131,6 @@ io.on("connection", (socket) => {
     moveSnakes(); // Start der Spielschleife
   }
 
-  // Spielschleife
-  const moveSnakes = () => {
-    for (const playerId in players) {
-      const player = players[playerId];
-
-      // Schlange des Spielers bewegen
-      player.body.unshift([player.body[0][0] + player.direction.x, player.body[0][1] + player.direction.y]);
-      player.body.pop(); // Entferne das hintere Segment
-
-      // Wandkollision überprüfen (gehe zur gegenüberliegenden Seite)
-      if (player.body[0][0] < 0) {
-        player.body[0][0] = 19; // Bei Wand auf der linken Seite, gehe auf die rechte Seite
-      } else if (player.body[0][0] >= 20) {
-        player.body[0][0] = 0; // Bei Wand auf der rechten Seite, gehe auf die linke Seite
-      }
-
-      if (player.body[0][1] < 0) {
-        player.body[0][1] = 19; // Bei Wand oben, gehe nach unten
-      } else if (player.body[0][1] >= 20) {
-        player.body[0][1] = 0; // Bei Wand unten, gehe nach oben
-      }
-
-      // Überprüfe, ob die Schlange mit sich selbst kollidiert
-      if (player.body.slice(1).some(segment => segment[0] === player.body[0][0] && segment[1] === player.body[0][1])) {
-        // Wenn die Schlange mit sich selbst kollidiert oder stirbt, spawn den Spieler neu
-        console.log(`${playerId} hat verloren! Neuer Spawn...`);
-        player.body = [getRandomFreePosition()]; // Setze die Schlange an einer neuen Position zurück
-        player.direction = { x: 1, y: 0 }; // Anfangsrichtung setzen
-        player.score = 0; // Score zurücksetzen
-      }
-
-      // Überprüfe, ob die Schlange das Food isst
-      if (player.body[0][0] === food.x && player.body[0][1] === food.y) {
-        player.body.push([...player.body[player.body.length - 1]]);
-        player.score += 10;
-        spawnFood(); // Neues Food spawnen
-      }
-    }
-
-    // Broadcast den Spielstatus an alle Spieler
-    io.emit("gameUpdate", { players, food });
-
-    // Wiederhole die Bewegung alle 200ms
-    setTimeout(moveSnakes, 200);
-  };
-
   // Tastenanschläge für Steuerung empfangen
   socket.on("keyPress", (key) => {
     const player = players[socket.id];
@@ -138,16 +148,6 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("playerLeft", { id: socket.id });
   });
 });
-
-// Funktion zum Erzeugen einer zufälligen Farbe
-function getRandomColor() {
-  const letters = '0123456789ABCDEF';
-  let color = '#';
-  for (let i = 0; i < 6; i++) {
-    color += letters[Math.floor(Math.random() * 16)];
-  }
-  return color;
-}
 
 // Server starten
 server.listen(port, () => {
