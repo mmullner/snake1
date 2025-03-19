@@ -24,6 +24,7 @@ const gridSize = 20;
 const speed = 180; // Geschwindigkeit der Bewegung
 
 let gameStarted = false;
+let countdownInProgress = false; // Flag, das angibt, ob der Countdown läuft
 
 // 🎮 Erstfreie Spielernummer suchen
 function getNextPlayerNumber() {
@@ -52,25 +53,27 @@ function getRandomFreePosition() {
   return { x: position[0], y: position[1] };
 }
 
-
 // 🔢 Countdown für Respawn oder Spielstart
-function startCountdown(player, isRespawn = false) {
+function startCountdown(isRespawn = false) {
   let countdown = 3;
+  countdownInProgress = true; // Countdown läuft
+
   const interval = setInterval(() => {
-    io.to(player.id).emit("countdown", countdown);
+    io.emit("countdown", countdown); // Alle Spieler erhalten den Countdown
     countdown--;
 
     if (countdown < 0) {
       clearInterval(interval);
       if (isRespawn) {
-        respawnPlayerAfterCountdown(player);
+        // Spieler respawnen
+        Object.values(players).forEach(player => respawnPlayerAfterCountdown(player));
       } else {
+        // Spiel starten
         startGame();
       }
     }
   }, 1000);
 }
-
 
 // 🔄 Spieler respawnen nach Tod
 function respawnPlayer(player) {
@@ -81,7 +84,7 @@ function respawnPlayer(player) {
   io.emit("playerLeft", { id: player.id });
 
   // Countdown starten
-  startCountdown(player, true);
+  startCountdown(true);
 }
 
 // 🔄 Spieler nach dem Countdown respawnen
@@ -175,9 +178,9 @@ io.on("connection", (socket) => {
   socket.emit("init", { snake, food });
   io.emit("newPlayer", { id: socket.id, snake });
 
-  if (!gameStarted) {
-    gameStarted = true;
-    moveSnakes();
+  if (!gameStarted && Object.keys(players).length === 1) {
+    // Starten Sie den Countdown, wenn der erste Spieler sich verbindet
+    startCountdown();
   }
 
   // ⌨️ Steuerung (PC & Mobile)
