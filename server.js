@@ -5,7 +5,7 @@ const cors = require("cors");  // CORS-Modul einbinden
 const app = express();
 const server = http.createServer(app);
 
-// CORS-Konfguration
+// CORS-Konfiguration
 const io = require('socket.io')(server, {
     cors: {
         origin: "https://snake-frontend-x8cf.onrender.com",  // Frontend-URL
@@ -63,55 +63,6 @@ io.on("connection", (socket) => {
   // Broadcast an andere Spieler, dass ein neuer Spieler eingetreten ist
   socket.broadcast.emit("newPlayer", { id: socket.id, snake });
 
-  // Spielschleife für alle Spieler
-  const moveSnakes = () => {
-    for (const playerId in players) {
-      const player = players[playerId];
-
-      // Schlange des Spielers bewegen
-      player.body.unshift([player.body[0][0] + player.direction.x, player.body[0][1] + player.direction.y]);
-      player.body.pop(); // Entferne das hintere Segment
-
-      // Wandkollision überprüfen und den Spieler auf der gegenüberliegenden Seite erscheinen lassen
-      if (player.body[0][0] < 0) {
-        player.body[0][0] = 19;  // An der rechten Seite erscheinen
-      } else if (player.body[0][0] >= 20) {
-        player.body[0][0] = 0;  // An der linken Seite erscheinen
-      }
-
-      if (player.body[0][1] < 0) {
-        player.body[0][1] = 19;  // Am unteren Rand erscheinen
-      } else if (player.body[0][1] >= 20) {
-        player.body[0][1] = 0;  // Am oberen Rand erscheinen
-      }
-
-      // Überprüfe, ob die Schlange mit sich selbst kollidiert
-      if (
-        player.body.slice(1).some(segment => segment[0] === player.body[0][0] && segment[1] === player.body[0][1])
-      ) {
-        io.emit("gameOver", { winner: playerId === Object.keys(players)[0] ? "Blue" : "Red", scores: players });
-        players = {}; // Alle Spieler zurücksetzen
-        return;
-      }
-
-      // Überprüfe, ob die Schlange das Food isst
-      if (player.body[0][0] === food.x && player.body[0][1] === food.y) {
-        player.body.push([...player.body[player.body.length - 1]]);
-        player.score += 10;
-        spawnFood(); // Neues Food spawnen
-      }
-    }
-
-    // Broadcast den Spielstatus an alle Spieler
-    io.emit("gameUpdate", { players, food });
-
-    // Wiederhole die Bewegung alle 200ms
-    setTimeout(moveSnakes, 200);
-  };
-
-  // Spiel starten
-  moveSnakes();
-
   // Tastenanschläge für Steuerung empfangen
   socket.on("keyPress", (key) => {
     const player = players[socket.id];
@@ -129,6 +80,55 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("playerLeft", { id: socket.id });
   });
 });
+
+// Funktion für die Spielschleife, die für alle Spieler zuständig ist
+const moveSnakes = () => {
+  for (const playerId in players) {
+    const player = players[playerId];
+
+    // Schlange des Spielers bewegen
+    player.body.unshift([player.body[0][0] + player.direction.x, player.body[0][1] + player.direction.y]);
+    player.body.pop(); // Entferne das hintere Segment
+
+    // Wandkollision überprüfen und den Spieler auf der gegenüberliegenden Seite erscheinen lassen
+    if (player.body[0][0] < 0) {
+      player.body[0][0] = 19;  // An der rechten Seite erscheinen
+    } else if (player.body[0][0] >= 20) {
+      player.body[0][0] = 0;  // An der linken Seite erscheinen
+    }
+
+    if (player.body[0][1] < 0) {
+      player.body[0][1] = 19;  // Am unteren Rand erscheinen
+    } else if (player.body[0][1] >= 20) {
+      player.body[0][1] = 0;  // Am oberen Rand erscheinen
+    }
+
+    // Überprüfe, ob die Schlange mit sich selbst kollidiert
+    if (
+      player.body.slice(1).some(segment => segment[0] === player.body[0][0] && segment[1] === player.body[0][1])
+    ) {
+      io.emit("gameOver", { winner: playerId === Object.keys(players)[0] ? "Blue" : "Red", scores: players });
+      players = {}; // Alle Spieler zurücksetzen
+      return;
+    }
+
+    // Überprüfe, ob die Schlange das Food isst
+    if (player.body[0][0] === food.x && player.body[0][1] === food.y) {
+      player.body.push([...player.body[player.body.length - 1]]);
+      player.score += 10;
+      spawnFood(); // Neues Food spawnen
+    }
+  }
+
+  // Broadcast den Spielstatus an alle Spieler
+  io.emit("gameUpdate", { players, food });
+
+  // Wiederhole die Bewegung alle 200ms
+  setTimeout(moveSnakes, 200);
+};
+
+// Spiel starten
+moveSnakes();
 
 // Server starten
 server.listen(port, () => {
