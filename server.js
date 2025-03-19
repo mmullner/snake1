@@ -21,7 +21,7 @@ app.use(express.static("public"));
 let players = {};
 let food = { x: 10, y: 10 };
 const gridSize = 20;
-const speed = 100; // Geschwindigkeit der Bewegung
+const speed = 180; // Geschwindigkeit der Bewegung
 
 let gameStarted = false;
 
