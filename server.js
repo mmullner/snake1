@@ -178,10 +178,8 @@ io.on("connection", (socket) => {
   socket.emit("init", { snake, food });
   io.emit("newPlayer", { id: socket.id, snake });
 
-  if (!gameStarted && Object.keys(players).length === 1) {
-    // Starten Sie den Countdown, wenn der erste Spieler sich verbindet
-    startCountdown();
-  }
+  console.log("Starte Countdown für den neuen Spieler...");
+  startCountdown(socket);
 
   // ⌨️ Steuerung (PC & Mobile)
   socket.on("keyPress", (key) => {
