@@ -21,10 +21,9 @@ app.use(express.static("public"));
 let players = {};
 let food = { x: 10, y: 10 };
 const gridSize = 20;
-const speed = 180; // Geschwindigkeit der Bewegung
+const speed = 180;
 
 let gameStarted = false;
-let countdownInProgress = false; // Flag, das angibt, ob der Countdown läuft
 
 // 🎮 Erstfreie Spielernummer suchen
 function getNextPlayerNumber() {
@@ -53,102 +52,8 @@ function getRandomFreePosition() {
   return { x: position[0], y: position[1] };
 }
 
-// 🔢 Countdown für einen einzelnen Spieler starten
-function startCountdownForPlayer(socket, isRespawn = false) {
-  let countdown = 3;
-
-  const interval = setInterval(() => {
-    socket.emit("countdown", countdown); // Countdown nur für diesen Spieler senden
-    countdown--;
-
-    if (countdown < 0) {
-      clearInterval(interval);
-      if (isRespawn) {
-        // Spieler respawnen
-        respawnPlayerAfterCountdown(socket);
-      } else {
-        // Spiel für den Spieler starten
-        startGameForPlayer(socket);
-      }
-    }
-  }, 1000);
-}
-
-// 🎮 Spiel nur für diesen Spieler starten
-function startGameForPlayer(socket) {
-  gameStarted = true;
-  socket.emit("gameStart"); // Das Spiel für diesen Spieler starten
-  moveSnakes();
-}
-
-// 🔄 Spieler nach dem Countdown respawnen
-function respawnPlayerAfterCountdown(socket) {
-  const player = players[socket.id];
-  if (!player) return;
-
-  const newStartPos = getRandomFreePosition();
-
-  // Neuer Spieler-Objekt erstellen
-  const newSnake = {
-    id: player.id,
-    number: player.number,
-    name: player.name,
-    direction: { x: 1, y: 0 },
-    body: [[newStartPos.x, newStartPos.y]],
-    score: 0,
-    color: player.color, // Spielerfarbe beibehalten
-  };
-
-  // Den Spieler wieder hinzufügen
-  players[socket.id] = newSnake;
-
-  // Das Spiel mit dem neuen Spielerstatus aktualisieren
-  io.emit("newPlayer", { id: socket.id, snake: newSnake });
-  io.emit("gameUpdate", { players, food });
-}
-
-// 🏃 Bewegungsschleife für alle Spieler
-function moveSnakes() {
-  let occupiedPositions = new Set();
-
-  Object.values(players).forEach(player => {
-    player.body.forEach(segment => {
-      occupiedPositions.add(`${segment[0]},${segment[1]}`);
-    });
-  });
-
-  for (const playerId in players) {
-    const player = players[playerId];
-
-    const newHead = [
-      (player.body[0][0] + player.direction.x + gridSize) % gridSize,
-      (player.body[0][1] + player.direction.y + gridSize) % gridSize
-    ];
-
-    // ❌ Prüfen auf Kollision mit sich selbst oder anderen Spielern
-    if (player.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1]) ||
-        occupiedPositions.has(`${newHead[0]},${newHead[1]}`)) {
-        respawnPlayerAfterCountdown(player.id);  // Ändere hier zu respawnPlayerAfterCountdown
-        continue;
-    }
-
-    player.body.unshift(newHead);
-    occupiedPositions.add(`${newHead[0]},${newHead[1]}`);
-
-    // 🍏 Essen einsammeln
-    if (newHead[0] === food.x && newHead[1] === food.y) {
-      player.score += 1;
-      food = getRandomFreePosition();
-    } else {
-      player.body.pop();
-    }
-  }
-
-  io.emit("gameUpdate", { players, food });
-  setTimeout(moveSnakes, speed);
-}
-
-io.on("connection", (socket) => {
+// 🎮 **Spieler hinzufügen & sofort starten**
+function addPlayer(socket) {
   console.log(`✅ Spieler verbunden: ${socket.id}`);
 
   const playerNumber = getNextPlayerNumber();
@@ -169,9 +74,69 @@ io.on("connection", (socket) => {
   socket.emit("init", { snake, food });
   io.emit("newPlayer", { id: socket.id, snake });
 
-  // Countdown nur für den neuen Spieler starten
-  console.log("Starte Countdown für den neuen Spieler...");
-  startCountdownForPlayer(socket);
+  if (!gameStarted) {
+    gameStarted = true;
+    moveSnakes();
+  }
+}
+
+// 🏃 **Bewegung aller Schlangen**
+function moveSnakes() {
+  let occupiedPositions = new Set();
+
+  Object.values(players).forEach(player => {
+    player.body.forEach(segment => {
+      occupiedPositions.add(`${segment[0]},${segment[1]}`);
+    });
+  });
+
+  for (const playerId in players) {
+    const player = players[playerId];
+
+    const newHead = [
+      (player.body[0][0] + player.direction.x + gridSize) % gridSize,
+      (player.body[0][1] + player.direction.y + gridSize) % gridSize
+    ];
+
+    // ❌ Kollision mit sich selbst oder anderen Spielern
+    if (player.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1]) ||
+        occupiedPositions.has(`${newHead[0]},${newHead[1]}`)) {
+        respawnPlayer(playerId);
+        continue;
+    }
+
+    player.body.unshift(newHead);
+    occupiedPositions.add(`${newHead[0]},${newHead[1]}`);
+
+    // 🍏 Essen einsammeln
+    if (newHead[0] === food.x && newHead[1] === food.y) {
+      player.score += 1;
+      food = getRandomFreePosition();
+    } else {
+      player.body.pop();
+    }
+  }
+
+  io.emit("gameUpdate", { players, food });
+  setTimeout(moveSnakes, speed);
+}
+
+// 🔄 **Spieler respawnen**
+function respawnPlayer(playerId) {
+  const player = players[playerId];
+  if (!player) return;
+
+  const newStartPos = getRandomFreePosition();
+  players[playerId].body = [[newStartPos.x, newStartPos.y]];
+  players[playerId].score = 0;
+  players[playerId].direction = { x: 1, y: 0 };
+
+  io.emit("gameUpdate", { players, food });
+}
+
+// 🎮 **Spieler verbindet sich**
+io.on("connection", (socket) => {
+  addPlayer(socket);
 
   // ⌨️ Steuerung (PC & Mobile)
   socket.on("keyPress", (key) => {
