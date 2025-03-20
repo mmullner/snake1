@@ -128,8 +128,8 @@ function moveSnakes() {
     // ❌ Prüfen auf Kollision mit sich selbst oder anderen Spielern
     if (player.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1]) ||
         occupiedPositions.has(`${newHead[0]},${newHead[1]}`)) {
-      respawnPlayer(player);  // Direkter Aufruf der Respawn-Logik
-      continue;
+        respawnPlayerAfterCountdown(player.id);  // Ändere hier zu respawnPlayerAfterCountdown
+        continue;
     }
 
     player.body.unshift(newHead);
