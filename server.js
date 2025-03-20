@@ -63,44 +63,13 @@ function resetPlayer(playerId) {
   }
 }
 
-// Bewegungsschleife mit Kollisionserkennung
-function moveSnakes() {
-  if (!gameStarted) return;
-
-  for (const playerId in players) {
-    const player = players[playerId];
-    const newHead = [
-      (player.body[0][0] + player.direction.x + gridSize) % gridSize,
-      (player.body[0][1] + player.direction.y + gridSize) % gridSize
-    ];
-
-    // Überprüfung auf Kollision mit anderen Spielern
-    let collision = Object.values(players).some(p =>
-      p.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1])
-    );
-
-    if (collision) {
-      console.log(`💀 Spieler ${player.number} ist mit einem anderen Spieler kollidiert!`);
-      resetPlayer(playerId);
-      continue;
-    }
-
-    player.body.unshift(newHead);
-
-    if (newHead[0] === food.x && newHead[1] === food.y) {
-      player.score += 10;
-      food = getRandomFreePosition();
-    } else {
-      player.body.pop();
-    }
-  }
-
-  io.emit("gameUpdate", { players, food });
-  setTimeout(moveSnakes, gameSpeed);
-}
-
 io.on("connection", (socket) => {
   console.log(`✅ Spieler verbunden: ${socket.id}`);
+
+  if (players[socket.id]) {
+    delete players[socket.id];
+    io.emit("playerLeft", { id: socket.id });
+  }
 
   const playerNumber = getNextPlayerNumber();
   const startPos = getRandomFreePosition();
