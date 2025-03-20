@@ -63,6 +63,18 @@ function resetPlayer(playerId) {
   }
 }
 
+function checkCollision(newHead, playerId) {
+  for (const otherId in players) {
+    if (otherId !== playerId) {
+      const otherPlayer = players[otherId];
+      if (otherPlayer.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1])) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function moveSnakes() {
   for (const playerId in players) {
     const player = players[playerId];
@@ -71,7 +83,7 @@ function moveSnakes() {
       (player.body[0][1] + player.direction.y + gridSize) % gridSize
     ];
 
-    if (player.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1])) {
+    if (player.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1]) || checkCollision(newHead, playerId)) {
       console.log(`💀 Spieler ${player.number} ist gestorben! Reset...`);
       resetPlayer(playerId);
       continue;
