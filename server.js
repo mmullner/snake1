@@ -23,7 +23,8 @@ app.use(cors());
 app.use(express.static("public"));
 
 let players = {};
-let food = { x: 10, y: 10 };
+let food = []; // Food als Array
+const numberOfFoodItems = 3; // Anzahl der Food-Objekte im Spiel
 let gameLoop = null;
 
 function getNextPlayerNumber() {
@@ -60,6 +61,13 @@ function resetPlayer(playerId) {
   io.to(playerId).emit("init", { snake: players[playerId], food });
 }
 
+function generateFood() {
+  food = [];
+  for (let i = 0; i < numberOfFoodItems; i++) {
+    food.push(getRandomFreePosition());
+  }
+}
+
 function moveSnakes() {
   let newHeads = {};
   let collisions = new Set();
@@ -94,10 +102,18 @@ function moveSnakes() {
   for (const playerId in players) {
     if (collisions.has(playerId)) continue;
     players[playerId].body.unshift(newHeads[playerId]);
-    if (newHeads[playerId][0] === food.x && newHeads[playerId][1] === food.y) {
-      players[playerId].score++;
-      food = getRandomFreePosition();
-    } else {
+
+    // Überprüfen, ob der Kopf des Spielers auf einem Food-Objekt ist
+    food.forEach((f, index) => {
+      if (newHeads[playerId][0] === f.x && newHeads[playerId][1] === f.y) {
+        players[playerId].score++;
+        // Food-Objekt neu platzieren
+        food[index] = getRandomFreePosition();
+      }
+    });
+
+    // Wenn der Spieler nichts frisst, wird das letzte Segment des Körpers entfernt
+    if (!food.some(f => newHeads[playerId][0] === f.x && newHeads[playerId][1] === f.y)) {
       players[playerId].body.pop();
     }
   }
@@ -149,6 +165,7 @@ io.on("connection", (socket) => {
   });
 });
 
+generateFood(); // Initialisiere die Food-Objekte zu Spielbeginn
 server.listen(port, () => {
   console.log(`🚀 Server läuft auf http://localhost:${port}`);
 });
