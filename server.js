@@ -23,6 +23,7 @@ let food = { x: 10, y: 10 };
 const gridSize = 20;
 
 let gameStarted = false;
+let gameLoop = null;
 
 function getNextPlayerNumber() {
   let num = 1;
@@ -51,6 +52,8 @@ function getRandomFreePosition() {
 
 // Bewegungsschleife mit Kollisionserkennung
 function moveSnakes() {
+  if (!gameStarted) return;
+
   let newPlayerStates = {};
 
   for (const playerId in players) {
@@ -111,7 +114,9 @@ io.on("connection", (socket) => {
 
   if (!gameStarted) {
     gameStarted = true;
-    moveSnakes();
+    if (!gameLoop) {
+      gameLoop = setTimeout(moveSnakes, 100);
+    }
   }
 
   socket.on("keyPress", (key) => {
@@ -137,6 +142,7 @@ io.on("connection", (socket) => {
 
     if (Object.keys(players).length === 0) {
       gameStarted = false;
+      gameLoop = null;
     }
   });
 });
