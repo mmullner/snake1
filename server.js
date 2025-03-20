@@ -112,10 +112,8 @@ function moveSnakes() {
       }
     });
 
-    // Wenn der Spieler nichts frisst, wird das letzte Segment des Körpers entfernt
-    if (!food.some(f => newHeads[playerId][0] === f.x && newHeads[playerId][1] === f.y)) {
-      players[playerId].body.pop();
-    }
+    // **Kein Entfernen des letzten Segments des Körpers**
+    // Wir entfernen NICHT das letzte Segment, egal ob Nahrung gefressen wurde oder nicht.
   }
 
   io.emit("gameUpdate", { players, food });
