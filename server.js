@@ -3,6 +3,8 @@ const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
 
+const gameSpeed = 100; // Konstante Spielgeschwindigkeit in Millisekunden
+
 const app = express();
 const server = http.createServer(app);
 
@@ -50,11 +52,20 @@ function getRandomFreePosition() {
   return { x: position[0], y: position[1] };
 }
 
+function resetPlayer(playerId) {
+  const player = players[playerId];
+  if (player) {
+    let newStart = getRandomFreePosition();
+    player.body = [[newStart.x, newStart.y]];
+    player.direction = { x: 1, y: 0 };
+    player.score = 0;
+    io.to(playerId).emit("init", { snake: player, food });
+  }
+}
+
 // Bewegungsschleife mit Kollisionserkennung
 function moveSnakes() {
   if (!gameStarted) return;
-
-  let newPlayerStates = {};
 
   for (const playerId in players) {
     const player = players[playerId];
@@ -70,8 +81,7 @@ function moveSnakes() {
 
     if (collision) {
       console.log(`💀 Spieler ${player.number} ist mit einem anderen Spieler kollidiert!`);
-      delete players[playerId];
-      io.emit("playerLeft", { id: playerId });
+      resetPlayer(playerId);
       continue;
     }
 
@@ -83,13 +93,10 @@ function moveSnakes() {
     } else {
       player.body.pop();
     }
-
-    newPlayerStates[playerId] = player;
   }
 
-  players = newPlayerStates;
   io.emit("gameUpdate", { players, food });
-  setTimeout(moveSnakes, 100);
+  setTimeout(moveSnakes, gameSpeed);
 }
 
 io.on("connection", (socket) => {
@@ -115,7 +122,7 @@ io.on("connection", (socket) => {
   if (!gameStarted) {
     gameStarted = true;
     if (!gameLoop) {
-      gameLoop = setTimeout(moveSnakes, 100);
+      gameLoop = setTimeout(moveSnakes, gameSpeed);
     }
   }
 
