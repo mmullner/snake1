@@ -104,29 +104,40 @@ io.on("connection", (socket) => {
   // Broadcast an andere Spieler, dass ein neuer Spieler eingetreten ist
   socket.broadcast.emit("newPlayer", { id: socket.id, snake });
 
-  // Tastenanschläge für Steuerung empfangen
+  //Steuerung
   socket.on("keyPress", (key) => {
     const player = players[socket.id];
-
     if (!player) return;
 
-    // Wenn der Spieler nach links schauen möchte
-    if (key === "ArrowLeft" && player.direction.x !== 1) {
-      player.direction = { x: -1, y: 0 };
+    const currentDirection = player.direction;
+
+    // Wenn der Spieler nach links drehen möchte
+    if (key === "ArrowLeft") {
+        if (currentDirection.x === 1) {
+            player.direction = { x: 0, y: -1 }; // Rechts → Oben
+        } else if (currentDirection.x === -1) {
+            player.direction = { x: 0, y: 1 }; // Links → Unten
+        } else if (currentDirection.y === 1) {
+            player.direction = { x: 1, y: 0 }; // Unten → Rechts
+        } else if (currentDirection.y === -1) {
+            player.direction = { x: -1, y: 0 }; // Oben → Links
+        }
     }
-    // Wenn der Spieler nach rechts schauen möchte
-    if (key === "ArrowRight" && player.direction.x !== -1) {
-      player.direction = { x: 1, y: 0 };
+
+    // Wenn der Spieler nach rechts drehen möchte
+    if (key === "ArrowRight") {
+        if (currentDirection.x === 1) {
+            player.direction = { x: 0, y: 1 }; // Rechts → Unten
+        } else if (currentDirection.x === -1) {
+            player.direction = { x: 0, y: -1 }; // Links → Oben
+        } else if (currentDirection.y === 1) {
+            player.direction = { x: -1, y: 0 }; // Unten → Links
+        } else if (currentDirection.y === -1) {
+            player.direction = { x: 1, y: 0 }; // Oben → Rechts
+        }
     }
-    // Wenn der Spieler nach oben schauen möchte
-    if (key === "ArrowUp" && player.direction.y !== 1) {
-      player.direction = { x: 0, y: -1 };
-    }
-    // Wenn der Spieler nach unten schauen möchte
-    if (key === "ArrowDown" && player.direction.y !== -1) {
-      player.direction = { x: 0, y: 1 };
-    }
-  });
+});
+
 
   // Wenn ein Spieler sich trennt
   socket.on("disconnect", () => {
