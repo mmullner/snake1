@@ -3,7 +3,7 @@ const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
 
-const gameSpeed = 185; // Konstante Spielgeschwindigkeit in Millisekunden
+const gameSpeed = 100; // Konstante Spielgeschwindigkeit in Millisekunden
 
 const app = express();
 const server = http.createServer(app);
@@ -63,36 +63,53 @@ function resetPlayer(playerId) {
   }
 }
 
-function checkCollision(newHead, playerId) {
-  for (const otherId in players) {
-    if (otherId !== playerId) {
-      const otherPlayer = players[otherId];
-      if (otherPlayer.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1])) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 function moveSnakes() {
+  let collisions = new Set();
+  let newHeads = {};
+
   for (const playerId in players) {
     const player = players[playerId];
     const newHead = [
       (player.body[0][0] + player.direction.x + gridSize) % gridSize,
       (player.body[0][1] + player.direction.y + gridSize) % gridSize
     ];
+    newHeads[playerId] = newHead;
+  }
 
-    if (player.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1]) || checkCollision(newHead, playerId)) {
-      console.log(`💀 Spieler ${player.number} ist gestorben! Reset...`);
-      resetPlayer(playerId);
-      continue;
+  for (const playerId in players) {
+    const player = players[playerId];
+    const newHead = newHeads[playerId];
+
+    // Prüfen, ob Kopf mit anderem Kopf kollidiert
+    for (const otherId in newHeads) {
+      if (otherId !== playerId && newHeads[otherId][0] === newHead[0] && newHeads[otherId][1] === newHead[1]) {
+        collisions.add(playerId);
+        collisions.add(otherId);
+      }
     }
 
+    // Prüfen, ob Kopf mit einem anderen Körper kollidiert
+    for (const otherId in players) {
+      if (players[otherId].body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1])) {
+        collisions.add(playerId);
+      }
+    }
+  }
+
+  for (const playerId of collisions) {
+    console.log(`💀 Spieler ${players[playerId].number} ist gestorben! Reset...`);
+    resetPlayer(playerId);
+  }
+
+  for (const playerId in players) {
+    if (collisions.has(playerId)) continue;
+
+    const player = players[playerId];
+    const newHead = newHeads[playerId];
     player.body.unshift(newHead);
 
     if (newHead[0] === food.x && newHead[1] === food.y) {
-      player.score += 10;
+      player.score += 1;
       food = getRandomFreePosition();
     } else {
       player.body.pop();
