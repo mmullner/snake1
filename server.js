@@ -63,6 +63,34 @@ function resetPlayer(playerId) {
   }
 }
 
+function moveSnakes() {
+  for (const playerId in players) {
+    const player = players[playerId];
+    const newHead = [
+      (player.body[0][0] + player.direction.x + gridSize) % gridSize,
+      (player.body[0][1] + player.direction.y + gridSize) % gridSize
+    ];
+
+    if (player.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1])) {
+      console.log(`💀 Spieler ${player.number} ist gestorben! Reset...`);
+      resetPlayer(playerId);
+      continue;
+    }
+
+    player.body.unshift(newHead);
+
+    if (newHead[0] === food.x && newHead[1] === food.y) {
+      player.score += 10;
+      food = getRandomFreePosition();
+    } else {
+      player.body.pop();
+    }
+  }
+
+  io.emit("gameUpdate", { players, food });
+  gameLoop = setTimeout(moveSnakes, gameSpeed);
+}
+
 io.on("connection", (socket) => {
   console.log(`✅ Spieler verbunden: ${socket.id}`);
 
