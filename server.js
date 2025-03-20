@@ -119,7 +119,7 @@ io.on("connection", (socket) => {
   players[socket.id] = {
     id: socket.id,
     number: playerNumber,
-    name: `Spieler ${playerNumber}`,
+    name: `Player ${playerNumber}`,
     direction: { x: 1, y: 0 },
     body: [[startPos.x, startPos.y]],
     score: 0,
