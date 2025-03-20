@@ -1,6 +1,6 @@
 const express = require("express");
 const http = require("http");
-const cors = require("cors");  // CORS-Modul einbinden
+const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
@@ -24,11 +24,13 @@ app.use(express.static("public"));
 
 let players = {};  // Spieler speichern
 let food = { x: 10, y: 10 }; // Initiale Position des Foods
+let playerCounter = 1;  // Zähler für die niedrigste freie Spielernummer
+const gridSize = 20; // Spielfeldgröße (20x20)
 
 // Funktion zum Spawnen von Food
 function spawnFood() {
-  food.x = Math.floor(Math.random() * 20);
-  food.y = Math.floor(Math.random() * 20);
+  food.x = Math.floor(Math.random() * gridSize);
+  food.y = Math.floor(Math.random() * gridSize);
 }
 
 // Funktion zum Generieren einer zufälligen Farbe
@@ -41,24 +43,53 @@ function getRandomColor() {
   return color;
 }
 
+// Funktion, um eine zufällige, nicht belegte Position zu finden
+function getRandomAvailablePosition() {
+  let position;
+  let isOccupied = true;
+
+  while (isOccupied) {
+    position = [Math.floor(Math.random() * gridSize), Math.floor(Math.random() * gridSize)];
+
+    // Überprüfen, ob diese Position von anderen Spielern oder Food belegt ist
+    isOccupied = Object.values(players).some(player => player.body.some(segment => segment[0] === position[0] && segment[1] === position[1]));
+    isOccupied = isOccupied || (food.x === position[0] && food.y === position[1]);
+  }
+
+  return position;
+}
+
+// Funktion, um die Kollision zwischen zwei Spielern zu prüfen
+function checkCollisionBetweenPlayers(player1, player2) {
+  return player1.body.some(segment =>
+    segment[0] === player2.body[0][0] && segment[1] === player2.body[0][1]
+  );
+}
+
 // Spieler initialisieren, wenn sie sich verbinden
 io.on("connection", (socket) => {
   console.log("Ein Spieler hat sich verbunden:", socket.id);
 
+  // Spielername mit niedrigster noch nicht vergebenen Nummer
+  const playerName = `Player${playerCounter}`;
+  playerCounter++;  // Erhöhe den Zähler für die nächste Nummer
+
   // Schlange für den neuen Spieler initialisieren
+  const initialPosition = getRandomAvailablePosition(); // Zufällige Startposition
   let snake = {
     id: socket.id,
     direction: { x: 1, y: 0 },
-    body: [[10, 10], [10, 9], [10, 8]], // Anfangsposition der Schlange
+    body: [initialPosition, [initialPosition[0], initialPosition[1] - 1], [initialPosition[0], initialPosition[1] - 2]], // Anfangsposition der Schlange
     score: 0,
     color: getRandomColor(),  // Zufällige Farbe für die Schlange
+    name: playerName,  // Spielername setzen
   };
 
   // Neuen Spieler zum Spieler-Objekt hinzufügen
   players[socket.id] = snake;
 
   // Sende den initialen Spielstatus an den neuen Spieler
-  socket.emit("init", { snake, food });
+  socket.emit("init", { snake, food, playerName });
 
   // Broadcast an andere Spieler, dass ein neuer Spieler eingetreten ist
   socket.broadcast.emit("newPlayer", { id: socket.id, snake });
@@ -67,10 +98,13 @@ io.on("connection", (socket) => {
   socket.on("keyPress", (key) => {
     const player = players[socket.id];
 
-    if (key === "ArrowUp" && player.direction.y !== 1) player.direction = { x: 0, y: -1 };
-    if (key === "ArrowDown" && player.direction.y !== -1) player.direction = { x: 0, y: 1 };
-    if (key === "ArrowLeft" && player.direction.x !== 1) player.direction = { x: -1, y: 0 };
-    if (key === "ArrowRight" && player.direction.x !== -1) player.direction = { x: 1, y: 0 };
+    // Nur nach links und rechts drehen
+    if (key === "ArrowLeft" && player.direction.x !== 1) {
+      player.direction = { x: -1, y: 0 }; // Nach links drehen
+    }
+    if (key === "ArrowRight" && player.direction.x !== -1) {
+      player.direction = { x: 1, y: 0 }; // Nach rechts drehen
+    }
   });
 
   // Wenn ein Spieler sich trennt
@@ -80,6 +114,22 @@ io.on("connection", (socket) => {
     socket.broadcast.emit("playerLeft", { id: socket.id });
   });
 });
+
+// Funktion zum Zurücksetzen des Spielers
+function resetPlayer(socketId) {
+  const initialPosition = getRandomAvailablePosition(); // Zufällige Startposition
+  let snake = {
+    id: socketId,
+    direction: { x: 1, y: 0 },
+    body: [initialPosition, [initialPosition[0], initialPosition[1] - 1], [initialPosition[0], initialPosition[1] - 2]], // Anfangsposition der Schlange
+    score: 0,
+    color: getRandomColor(),  // Zufällige Farbe für die Schlange
+    name: players[socketId].name,
+  };
+
+  players[socketId] = snake;
+  return snake;
+}
 
 // Funktion für die Spielschleife, die für alle Spieler zuständig ist
 const moveSnakes = () => {
@@ -92,14 +142,14 @@ const moveSnakes = () => {
 
     // Wandkollision überprüfen und den Spieler auf der gegenüberliegenden Seite erscheinen lassen
     if (player.body[0][0] < 0) {
-      player.body[0][0] = 19;  // An der rechten Seite erscheinen
-    } else if (player.body[0][0] >= 20) {
+      player.body[0][0] = gridSize - 1;  // An der rechten Seite erscheinen
+    } else if (player.body[0][0] >= gridSize) {
       player.body[0][0] = 0;  // An der linken Seite erscheinen
     }
 
     if (player.body[0][1] < 0) {
-      player.body[0][1] = 19;  // Am unteren Rand erscheinen
-    } else if (player.body[0][1] >= 20) {
+      player.body[0][1] = gridSize - 1;  // Am unteren Rand erscheinen
+    } else if (player.body[0][1] >= gridSize) {
       player.body[0][1] = 0;  // Am oberen Rand erscheinen
     }
 
@@ -107,9 +157,23 @@ const moveSnakes = () => {
     if (
       player.body.slice(1).some(segment => segment[0] === player.body[0][0] && segment[1] === player.body[0][1])
     ) {
-      io.emit("gameOver", { winner: playerId === Object.keys(players)[0] ? "Blue" : "Red", scores: players });
-      players = {}; // Alle Spieler zurücksetzen
-      return;
+      console.log(`Spieler ${player.id} hat sich selbst kollidiert und startet neu.`);
+      // Spieler zurücksetzen
+      const newSnake = resetPlayer(player.id);
+      io.to(player.id).emit("gameReset", { snake: newSnake, food });  // Sende die Spiel-Reset-Nachricht
+    }
+
+    // Überprüfe Kollision zwischen Spielern
+    for (const otherPlayerId in players) {
+      if (playerId !== otherPlayerId && checkCollisionBetweenPlayers(player, players[otherPlayerId])) {
+        console.log(`Spieler ${player.id} hat mit Spieler ${otherPlayerId} kollidiert und startet neu.`);
+        // Beide Spieler zurücksetzen
+        const newSnake = resetPlayer(player.id);
+        io.to(player.id).emit("gameReset", { snake: newSnake, food });
+
+        const otherNewSnake = resetPlayer(otherPlayerId);
+        io.to(otherPlayerId).emit("gameReset", { snake: otherNewSnake, food });
+      }
     }
 
     // Überprüfe, ob die Schlange das Food isst
