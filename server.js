@@ -21,7 +21,7 @@ app.use(express.static("public"));
 let players = {};
 let food = { x: 10, y: 10 };
 const gridSize = 20;
-const speed = 180;
+const speed = 180; // Geschwindigkeit der Bewegung
 
 let gameStarted = false;
 
@@ -52,103 +52,52 @@ function getRandomFreePosition() {
   return { x: position[0], y: position[1] };
 }
 
-// 🎮 **Spieler hinzufügen & sofort starten**
-function addPlayer(socket) {
+// 🔢 Spiel nur für diesen Spieler starten
+function startGameForPlayer(socket) {
+  gameStarted = true;
+  socket.emit("gameStart"); // Das Spiel für diesen Spieler starten
+  moveSnakes();
+}
+
+// 🎮 Neuer Spieler erstellen nach Countdown
+io.on("connection", (socket) => {
   console.log(`✅ Spieler verbunden: ${socket.id}`);
 
-  const playerNumber = getNextPlayerNumber();
-  const startPos = getRandomFreePosition();
+  // Wartet auf den Event 'newPlayer', bevor der Spieler ins Spiel kommt
+  socket.on("newPlayer", () => {
+    const playerNumber = getNextPlayerNumber();
+    const startPos = getRandomFreePosition();
 
-  let snake = {
-    id: socket.id,
-    number: playerNumber,
-    name: `Spieler ${playerNumber}`,
-    direction: { x: 1, y: 0 },
-    body: [[startPos.x, startPos.y]],
-    score: 0,
-    color: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
-  };
+    let snake = {
+      id: socket.id,
+      number: playerNumber,
+      name: `Spieler ${playerNumber}`,
+      direction: { x: 1, y: 0 },
+      body: [[startPos.x, startPos.y]],
+      score: 0,
+      color: `#${Math.floor(Math.random() * 16777215).toString(16)}`,
+    };
 
-  players[socket.id] = snake;
+    players[socket.id] = snake;
 
-  socket.emit("init", { snake, food });
-  io.emit("newPlayer", { id: socket.id, snake });
+    // Alle anderen Spieler über den neuen Spieler informieren
+    io.emit("newPlayer", { id: socket.id, snake });
 
-  if (!gameStarted) {
-    gameStarted = true;
-    moveSnakes();
-  }
-}
-
-// 🏃 **Bewegung aller Schlangen**
-function moveSnakes() {
-  let occupiedPositions = new Set();
-
-  Object.values(players).forEach(player => {
-    player.body.forEach(segment => {
-      occupiedPositions.add(`${segment[0]},${segment[1]}`);
-    });
+    socket.emit("init", { players, food });
+    startGameForPlayer(socket);
   });
-
-  for (const playerId in players) {
-    const player = players[playerId];
-
-    const newHead = [
-      (player.body[0][0] + player.direction.x + gridSize) % gridSize,
-      (player.body[0][1] + player.direction.y + gridSize) % gridSize
-    ];
-
-    // ❌ Kollision mit sich selbst oder anderen Spielern
-    if (player.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1]) ||
-        occupiedPositions.has(`${newHead[0]},${newHead[1]}`)) {
-        respawnPlayer(playerId);
-        continue;
-    }
-
-    player.body.unshift(newHead);
-    occupiedPositions.add(`${newHead[0]},${newHead[1]}`);
-
-    // 🍏 Essen einsammeln
-    if (newHead[0] === food.x && newHead[1] === food.y) {
-      player.score += 1;
-      food = getRandomFreePosition();
-    } else {
-      player.body.pop();
-    }
-  }
-
-  io.emit("gameUpdate", { players, food });
-  setTimeout(moveSnakes, speed);
-}
-
-// 🔄 **Spieler respawnen**
-function respawnPlayer(playerId) {
-  const player = players[playerId];
-  if (!player) return;
-
-  const newStartPos = getRandomFreePosition();
-  players[playerId].body = [[newStartPos.x, newStartPos.y]];
-  players[playerId].score = 0;
-  players[playerId].direction = { x: 1, y: 0 };
-
-  io.emit("gameUpdate", { players, food });
-}
-
-// 🎮 **Spieler verbindet sich**
-io.on("connection", (socket) => {
-  addPlayer(socket);
 
   // ⌨️ Steuerung (PC & Mobile)
   socket.on("keyPress", (key) => {
     const player = players[socket.id];
     if (!player) return;
 
-    if (key === "ArrowLeft") {
+    if (key === "left") {
       const temp = player.direction.x;
       player.direction.x = player.direction.y;
       player.direction.y = -temp;
     }
-    if (key === "ArrowRight") {
+    if (key === "right") {
       const temp = player.direction.x;
       player.direction.x = -player.direction.y;
       player.direction.y = temp;
