@@ -49,33 +49,10 @@ function getRandomFreePosition() {
   return { x: position[0], y: position[1] };
 }
 
-// Countdown-Funktion
-function startRespawnCountdown(socketId) {
-  let countdown = 3; // Start mit 3 Sekunden
-  const interval = setInterval(() => {
-    io.to(socketId).emit("countdown", countdown); // Sende Countdown an Client
-    countdown--;
-
-    if (countdown < 0) {
-      clearInterval(interval);
-      respawnPlayer(socketId); // Nach dem Countdown den Spieler respawnen
-    }
-  }, 1000);
-}
-
-function respawnPlayer(socketId) {
-  const player = players[socketId];
-  if (player) {
-    let newStart = getRandomFreePosition();
-    player.body = [[newStart.x, newStart.y]];
-    player.direction = { x: 1, y: 0 };
-    player.score = 0;
-    io.to(socketId).emit("init", { snake: player, food }); // Spieler wird mit neuer Position und Essen versorgt
-  }
-}
-
-// Bewegungsschleife
+// Bewegungsschleife mit Kollisionserkennung
 function moveSnakes() {
+  let newPlayerStates = {};
+
   for (const playerId in players) {
     const player = players[playerId];
     const newHead = [
@@ -83,9 +60,15 @@ function moveSnakes() {
       (player.body[0][1] + player.direction.y + gridSize) % gridSize
     ];
 
-    if (player.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1])) {
-      console.log(`💀 Spieler ${player.number} ist gestorben! Respawn...`);
-      startRespawnCountdown(player.id); // Countdown für den Respawn
+    // Überprüfung auf Kollision mit anderen Spielern
+    let collision = Object.values(players).some(p =>
+      p.body.some(segment => segment[0] === newHead[0] && segment[1] === newHead[1])
+    );
+
+    if (collision) {
+      console.log(`💀 Spieler ${player.number} ist mit einem anderen Spieler kollidiert!`);
+      delete players[playerId];
+      io.emit("playerLeft", { id: playerId });
       continue;
     }
 
@@ -97,8 +80,11 @@ function moveSnakes() {
     } else {
       player.body.pop();
     }
+
+    newPlayerStates[playerId] = player;
   }
 
+  players = newPlayerStates;
   io.emit("gameUpdate", { players, food });
   setTimeout(moveSnakes, 100);
 }
