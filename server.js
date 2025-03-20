@@ -3,7 +3,7 @@ const http = require("http");
 const socketIo = require("socket.io");
 const cors = require("cors");
 
-const gameSpeed = 100; // Konstante Spielgeschwindigkeit in Millisekunden
+const gameSpeed = 180; // Konstante Spielgeschwindigkeit in Millisekunden
 
 const app = express();
 const server = http.createServer(app);
